@@ -1,12 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>MovieApp</title>
-</head>
-<body>
-    <h1>Welcome to MovieApp</h1>
-    <p>Your personal movie database</p>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block content %}
+<h2>Users</h2>
+
+<ul>
+    {% for user in users %}
+        <li>
+            <a href="{{ url_for('list_movies', user_id=user.id)}}">{{ user.name }}</a>
+        </li>
+    {% else %}
+        <li>No users yet.</li>
+    {% endfor %}
+</ul>
+
+<h3>Add User</h3>
+<form action="{{ url_for('add_user') }}" method="POST">
+    <lable for="name">Name:</lable>
+    <input type="text" id="name" name="name" required>
+    <button type="submit">Add User</button>
+</form>
+{% endblock %}
