@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, url_for, flash, redirect
+from flask import Flask, render_template, request, url_for, flash, redirect, abort
 from dotenv import load_dotenv
 import requests
 
@@ -11,7 +11,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
-OMDB_API_KEY = os.environ.get('OMDB_API_KEY')
+OMDB_API_KEY = os.environ.get('OMDB_API_KEY', '').strip()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -22,8 +22,17 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DB_PATH
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-
 data_manager = DataManager()
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
 
 
 @app.route('/')
@@ -47,8 +56,7 @@ def add_user():
 def list_movies(user_id):
     user = db.session.get(User, user_id)
     if not user:
-        flash('User not found.', 'error')
-        return redirect(url_for('home'))
+        abort(404)
 
     movies = data_manager.get_movies(user_id)
     return render_template('movies.html', user=user, movies=movies)
@@ -58,8 +66,7 @@ def list_movies(user_id):
 def add_movie(user_id):
     user = db.session.get(User, user_id)
     if not user:
-        flash('User not fond.', 'error')
-        return redirect(url_for('home'))
+        abort(404)
 
     title = request.form.get('title')
     if not title:
@@ -93,8 +100,11 @@ def add_movie(user_id):
             poster_url=poster_url,
             user_id=user_id
         )
-        data_manager.add_movie(new_movie)
-        flash(f'Movie "{title}" added.', 'success')
+        try:
+            data_manager.add_movie(new_movie)
+            flash(f'Movie "{title}" added.', 'success')
+        except Exception as e:
+            flash(f'Database error: {e}', 'error')
     else:
         flash(f'Movie "{title}" not found on OMDb.', 'error')
 
@@ -103,24 +113,41 @@ def add_movie(user_id):
 
 @app.route('/users/<int:user_id>/movies/<int:movie_id>/update', methods=['POST'])
 def update_movie(user_id, movie_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+
+    movie = db.session.get(Movie, movie_id)
+    if not movie or movie.user_id != user_id:
+        abort(404)
+
     new_title =request.form.get('title')
     if not new_title:
         flash('New title cannot be empty.', 'error')
     else:
-        movi = data_manager.update_movie(movie_id, new_title)
-        if movi:
+        try:
+            data_manager.update_movie(movie_id, new_title)
             flash(f'Movie title updated to "{new_title}".', 'success')
-        else:
-            flash(f'Movie not found.', 'error')
+        except Exception as e:
+            flash(f'Database error: {e}', 'error')
     return redirect(url_for('list_movies', user_id=user_id))
 
 
 @app.route('/users/<int:user_id>/movies/<int:movie_id>/delete', methods=['POST'])
 def delete_movie(user_id, movie_id):
-    if data_manager.delete_movie(movie_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+
+    movie = db.session.get(Movie, movie_id)
+    if not movie or movie.user_id != user_id:
+        abort(404)
+
+    try:
+        data_manager.delete_movie(movie_id)
         flash('Movie deleted.', 'success')
-    else:
-        flash('Movie not found.', 'error')
+    except Exception as e:
+        flash(f'Database error: {e}', 'error')
     return redirect(url_for('list_movies', user_id=user_id))
 
 
@@ -129,4 +156,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-    #app.run(debug=True, host='0.0.0.0', port=5002)

@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MovieApp</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <header>
-        <h1><a href="{{ url_for('home') }}">MovieApp</a></h1>
+        <nav>
+            <h1><a href="{{ url_for('home') }}">MovieApp</a></h1>
+        </nav>
     </header>
 
-    <main>
+    <main class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <ul class="flashes">
